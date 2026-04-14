@@ -1,18 +1,7 @@
 import * as core from '@actions/core'
 import { context } from '@actions/github'
-import getTrending from './trend'
-import { sign_with_timestamp, PostToFeishu } from './feishu'
-import { BuildGithubTrendingCard, BuildGithubNotificationCard } from './card'
-
-async function PostGithubTrending(
-  webhookId: string,
-  timestamp: number,
-  sign: string
-): Promise<number | undefined> {
-  const trend = await getTrending()
-  const cardmsg = BuildGithubTrendingCard(timestamp, sign, trend)
-  return PostToFeishu(webhookId, cardmsg)
-}
+import { BuildGithubNotificationCard } from './card'
+import { PostToFeishu, sign_with_timestamp } from './feishu'
 
 export async function PostGithubEvent(): Promise<number | undefined> {
   const webhook = core.getInput('webhook')
@@ -22,94 +11,61 @@ export async function PostGithubEvent(): Promise<number | undefined> {
     ? core.getInput('signkey')
     : process.env.FEISHU_BOT_SIGNKEY || ''
 
-  const payload = context.payload || {}
-  console.log(payload)
-
   const webhookId = webhook.slice(webhook.indexOf('hook/') + 5)
   const tm = Math.floor(Date.now() / 1000)
   const sign = sign_with_timestamp(tm, signKey)
 
+  console.log(context.eventName, context.payload)
+
   const actor = context.actor
   const eventType = context.eventName
-  const repo = context.payload.repository?.name || 'junka'
-  let status = context.payload.action || 'closed'
+  const payload = context.payload
+  const repo = context.payload.repository?.name || ''
+
+  let status = context.payload.action || ''
   let etitle =
     context.payload.issue?.html_url ||
     context.payload.pull_request?.html_url ||
     ''
   let detailurl = ''
+
+  const prTitleLink = payload.pull_request
+    ? `[${payload.pull_request.title}](${payload.pull_request.html_url})`
+    : ''
+
   switch (eventType) {
-    case 'branch_protection_rule': {
-      const rule = context.payload.rule
-      etitle = `${rule.name}:\n${JSON.stringify(rule)}`
-      status = context.payload.action || 'created'
-      detailurl = context.payload.repository?.html_url || ''
-      break
-    }
-    case 'check_run':
-      break
-    case 'check_suite':
-      break
-    case 'create':
-      etitle = `${context.payload['ref_type'] === 'tag' ? 'create tag' : 'create'}\n\n${context.payload['ref']}`
-      status = 'create'
-      detailurl = context.payload.repository?.html_url || ''
-      break
-    case 'delete': {
-      etitle = `${context.payload['ref_type'] === 'tag' ? 'delete tag' : 'delete'}\n\n${context.payload['ref']}`
-      status = 'delete'
-      detailurl = context.payload.repository?.html_url || ''
-      break
-    }
-    case 'deployment':
-      break
-    case 'deployment_status':
-      break
-    case 'discussion':
-      break
-    case 'discussion_comment':
-      break
-    case 'fork':
-      break
-    case 'gollum':
-      break
     case 'issue_comment': {
       const comment = context.payload.comment
       etitle = `[No.${context.payload.issue?.number} ${context.payload.issue?.title}](${context.payload.issue?.html_url})\n\n${comment?.body}\n\n`
       detailurl = comment?.html_url || ''
       break
     }
-    case 'issues': {
-      const issue = context.payload.issue
-      etitle = `[No.${issue?.number} ${issue?.title}](${issue?.html_url})\n\n${issue?.body}\n\n`
-      detailurl = issue?.html_url || ''
-      break
-    }
-    case 'label':
-      break
-    case 'merge_group':
-      break
-    case 'milestone':
-      break
-    case 'page_build':
-      break
-    case 'project':
-      break
-    case 'project_card':
-      break
-    case 'project_column':
-      break
-    case 'public':
-      break
     case 'pull_request':
-      break
-    case 'pull_request_comment':
+      const pr = context.payload.pull_request
+      const prBody = pr?.body || ''
+      etitle = `${prTitleLink}\n\n${prBody}\n\n`
       break
     case 'pull_request_review':
+      const review = payload.review
+      status = review.state || status
+      const reviewBody = review.body || ''
+      etitle = `${prTitleLink}\n\n${reviewBody}\n\n`
+      break
+    case 'pull_request_review_thread':
+      const comments = payload.thread.comments
+      const allCommentBody = comments
+        .map((c: { body: string }) => c.body)
+        .join('\n\n')
+      etitle = `${prTitleLink}\n\n${allCommentBody}\n\n`
       break
     case 'pull_request_review_comment':
-      break
-    case 'pull_request_target':
+      const comment = payload.comment
+      if (!comment) {
+        break
+      }
+      const commentBody = comment.body || ''
+      etitle = `${prTitleLink}\n\n${commentBody}\n\n`
+      detailurl = comment.html_url || ''
       break
     case 'push': {
       const head_commit = context.payload['head_commit']
@@ -130,38 +86,17 @@ export async function PostGithubEvent(): Promise<number | undefined> {
           ? 'created'
           : context.payload['forced'] === true
             ? 'force updated'
-            : ''
+            : status
       detailurl = context.payload['compare']
       break
     }
-    case 'registry_package':
-      break
     case 'release': {
       const release = context.payload.release
       etitle = `${release['name']}\n${release['body']}\n${release['tag_name']}${release['prerelease'] === true ? '  prerelease' : ''}`
-      status = context.payload.action || 'published'
+      status = context.payload.action || ''
       detailurl = release['html_url']
       break
     }
-    case 'repository_dispatch':
-      break
-    case 'schedule':
-      return PostGithubTrending(webhookId, tm, sign)
-    case 'status':
-      break
-    case 'watch':
-      //trigger at star started
-      console.log(context.payload.repository)
-      etitle = `Total stars: ${context.payload.repository?.['stargazers_count']}`
-      status = 'stared'
-      detailurl = context.payload.repository?.html_url || ''
-      break
-    case 'workflow_call':
-      break
-    case 'workflow_dispatch':
-      break
-    case 'workflow_run':
-      break
     default:
       break
   }

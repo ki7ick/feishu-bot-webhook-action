@@ -1,5 +1,3 @@
-import { Repository } from './trend'
-
 type NotificationCard = {
   repo: string
   eventType: string
@@ -11,14 +9,10 @@ type NotificationCard = {
   detailurl: string
 }
 
-type TrendingCard = {
-  object_list_1: Repository[]
-}
-
 type CardData = {
   template_id: string
   template_version_name: string
-  template_variable: NotificationCard | TrendingCard
+  template_variable: NotificationCard
 }
 
 type CardType = {
@@ -67,27 +61,4 @@ export function BuildGithubNotificationCard(
     }
   }
   return JSON.stringify(ncard)
-}
-
-export function BuildGithubTrendingCard(
-  tm: number,
-  sign: string,
-  repos: Repository[]
-): string {
-  const tcard: CardMessage = {
-    timestamp: `${tm}`,
-    sign,
-    msg_type: 'interactive',
-    card: {
-      type: 'template',
-      data: {
-        template_id: 'AAqkpVra76ijV',
-        template_version_name: '1.0.0',
-        template_variable: {
-          object_list_1: repos
-        }
-      }
-    }
-  }
-  return JSON.stringify(tcard)
 }
