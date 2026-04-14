@@ -47,6 +47,9 @@ export async function PostGithubEvent(): Promise<number | undefined> {
       break
     case 'pull_request_review':
       const review = payload.review
+      if (review === 'commented'){
+        break
+      }
       status = review.state || status
       const reviewBody = review.body || ''
       etitle = `${prTitleLink}\n\n${reviewBody}\n\n`
