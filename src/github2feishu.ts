@@ -48,7 +48,7 @@ export async function PostGithubEvent(): Promise<number | undefined> {
     case 'pull_request_review':
       const review = payload.review
       if (review.state === 'commented'){
-        break
+        return
       }
       status = review.state || status
       const reviewBody = review.body || ''
