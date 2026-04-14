@@ -30129,7 +30129,7 @@ async function PostGithubEvent() {
             break;
         case 'pull_request_review':
             const review = payload.review;
-            if (review.state === 'commented' && !review.body) {
+            if (!review.body) {
                 return;
             }
             status = review.state || status;
